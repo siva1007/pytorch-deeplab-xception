@@ -58,3 +58,6 @@ class Saver(object):
         for key, val in p.items():
             log_file.write(key + ':' + str(val) + '\n')
         log_file.close()
+
+    def get_experiment_dir(self):
+        return self.experiment_dir

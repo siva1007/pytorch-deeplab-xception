@@ -13,6 +13,8 @@ from utils.lr_scheduler import LR_Scheduler
 from utils.saver import Saver
 from utils.summaries import TensorboardSummary
 from utils.metrics import Evaluator
+from utils.gpu import get_min_gpu_memory
+import pickle
 
 class Trainer(object):
     def __init__(self, args):
@@ -24,6 +26,7 @@ class Trainer(object):
         # Define Tensorboard Summary
         self.summary = TensorboardSummary(self.saver.experiment_dir)
         self.writer = self.summary.create_summary()
+        self.val_dict = {}
         
         # Define Dataloader
         kwargs = {'num_workers': args.workers, 'pin_memory': True}
@@ -154,11 +157,19 @@ class Trainer(object):
         Acc_class = self.evaluator.Pixel_Accuracy_Class()
         mIoU = self.evaluator.Mean_Intersection_over_Union()
         FWIoU = self.evaluator.Frequency_Weighted_Intersection_over_Union()
+        
         self.writer.add_scalar('val/total_loss_epoch', test_loss, epoch)
         self.writer.add_scalar('val/mIoU', mIoU, epoch)
         self.writer.add_scalar('val/Acc', Acc, epoch)
         self.writer.add_scalar('val/Acc_class', Acc_class, epoch)
         self.writer.add_scalar('val/fwIoU', FWIoU, epoch)
+        d = dict()
+        d['total_loss_epoch'] = test_loss
+        d['mIoU'] = mIoU
+        d['Acc'] = Acc
+        d['Acc_class'] = Acc_class
+        d['fwIoU'] = FWIoU
+        self.val_dict[epoch] = d
         print('Validation:')
         print('[Epoch: %d, numImages: %5d]' % (epoch, i * self.args.batch_size + image.data.shape[0]))
         print("Acc:{}, Acc_class:{}, mIoU:{}, fwIoU: {}".format(Acc, Acc_class, mIoU, FWIoU))
@@ -175,6 +186,12 @@ class Trainer(object):
                 'best_pred': self.best_pred,
             }, is_best)
 
+    def save_validation(self):
+        output_file = os.path.join(self.saver.get_experiment_dir(), 'validation.json')
+        with open(output_file, 'wb') as outfile:
+            pickle.dump(self.val_dict, outfile)
+        
+
 def main():
     parser = argparse.ArgumentParser(description="PyTorch DeeplabV3Plus Training")
     parser.add_argument('--backbone', type=str, default='resnet',
@@ -185,7 +202,7 @@ def main():
     parser.add_argument('--dataset', type=str, default='pascal',
                         choices=['pascal', 'coco', 'cityscapes'],
                         help='dataset name (default: pascal)')
-    parser.add_argument('--use-sbd', action='store_true', default=True,
+    parser.add_argument('--use-sbd', action='store_true', default=False,
                         help='whether to use SBD dataset (default: True)')
     parser.add_argument('--workers', type=int, default=4,
                         metavar='N', help='dataloader threads')
@@ -207,6 +224,9 @@ def main():
                         metavar='N', help='start epochs (default:0)')
     parser.add_argument('--batch-size', type=int, default=None,
                         metavar='N', help='input batch size for \
+                                training (default: auto)')
+    parser.add_argument('--batch-size-gpu', type=int, default=None,
+                        metavar='N', help='input batch size per gpu for \
                                 training (default: auto)')
     parser.add_argument('--test-batch-size', type=int, default=None,
                         metavar='N', help='input batch size for \
@@ -271,7 +291,10 @@ def main():
         args.epochs = epoches[args.dataset.lower()]
 
     if args.batch_size is None:
-        args.batch_size = 4 * len(args.gpu_ids)
+        if not args.batch_size_gpu:
+            memory = get_min_gpu_memory() // 1000
+            args.batch_size_gpu = memory // 4
+        args.batch_size = args.batch_size_gpu  * len(args.gpu_ids)
 
     if args.test_batch_size is None:
         args.test_batch_size = args.batch_size
@@ -282,7 +305,7 @@ def main():
             'cityscapes': 0.01,
             'pascal': 0.007,
         }
-        args.lr = lrs[args.dataset.lower()] / (4 * len(args.gpu_ids)) * args.batch_size
+        args.lr = lrs[args.dataset.lower()] / (args.batch_size_gpu * len(args.gpu_ids)) * args.batch_size
 
 
     if args.checkname is None:
@@ -298,6 +321,7 @@ def main():
             trainer.validation(epoch)
 
     trainer.writer.close()
+    trainer.save_validation()
 
 if __name__ == "__main__":
    main()
