@@ -121,15 +121,16 @@ class Trainer(object):
         print('[Epoch: %d, numImages: %5d]' % (epoch, i * self.args.batch_size + image.data.shape[0]))
         print('Loss: %.3f' % train_loss)
 
-        if self.args.no_val:
-            # save checkpoint every epoch
+        if (epoch+1) % 5 == 0:
+            # save every 5th epoch
+            checkpoint_name = 'checkpoint_epoch_{}.pth.tar'.format(epoch+1)
             is_best = False
             self.saver.save_checkpoint({
                 'epoch': epoch + 1,
                 'state_dict': self.model.module.state_dict(),
                 'optimizer': self.optimizer.state_dict(),
                 'best_pred': self.best_pred,
-            }, is_best)
+            }, is_best, checkpoint_name)
 
 
     def validation(self, epoch):

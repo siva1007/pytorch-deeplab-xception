@@ -1,1 +1,2 @@
-CUDA_VISIBLE_DEVICES=0,1 python train.py --backbone resnet --lr 0.007 --workers 16 --epochs 200 --batch-size 16 --gpu-ids 0,1 --checkname deeplab-resnet --eval-interval 5 --dataset pascal --resume ./run/pascal/deeplab-resnet/experiment_7/checkpoint.pth.tar
+#CUDA_VISIBLE_DEVICES=0,1 python train.py --backbone resnet --lr 0.007 --workers 16 --epochs 200 --batch-size 16 --gpu-ids 0,1 --checkname deeplab-resnet --eval-interval 5 --dataset pascal --resume ./run/pascal/deeplab-resnet/experiment_7/checkpoint.pth.tar
+CUDA_VISIBLE_DEVICES=0,1 python train.py --backbone resnet --lr 0.007 --workers 0 --epochs 250 --batch-size 16 --gpu-ids 0,1 --checkname deeplab-resnet_v2 --eval-interval 5 --dataset pascal --use-balanced-weights
